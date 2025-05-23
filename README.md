@@ -1,64 +1,10 @@
 # Phpydantic
 
-## Installation
-
-```bash
-composer require mertcanekiz/phpydantic
-```
-
-## Example
-
-### OpenAI structured outputs
-
-#### 1. Define your models:
-
-```php
-use Phpydantic\BaseModel;
-
-class Step extends BaseModel
-{
-    public string $explanation;
-    public string $output;
-}
-
-class MathReasoning extends BaseModel
-{
-    /**
-     * @var Step[]
-     */
-    public array $steps;
-
-    public string $finalAnswer;
-}
-```
-
-#### 2. Use the schema in OpenAI client:
-
-```php
-$client = OpenAI::client(...);
-
-$schema = MathReasoning::openAiSchema();
-
-$client->chat()->create([
-    'model' => 'gpt-4o-2024-08-06',
-    'messages' => [
-        ['role' => 'system', 'content' => 'You are a helpful math tutor. Guide the user through the solution step by step.'],
-        ['role' => 'user', 'content' => 'how can I solve 8x + 7 = -23']
-    ],
-    'response_format' => [
-        'type' => 'json_schema',
-        'json_schema' => $schema,
-    ]
-]);
-```
-
-# Phpydantic
-
 [![Packagist Version](https://img.shields.io/packagist/v/mertcanekiz/phpydantic.svg)](https://packagist.org/packages/mertcanekiz/phpydantic)
 [![PHP Version](https://img.shields.io/packagist/php-v/mertcanekiz/phpydantic.svg)](https://www.php.net/)
 [![License](https://img.shields.io/packagist/l/mertcanekiz/phpydantic.svg)](LICENSE)
 
-A PHP library for generating JSON schemas from PHP models, inspired by Python's pydantic. Seamlessly integrate with **OpenAI function calling** or any JSON-schema–driven tooling.
+A lightweight PHP library for generating JSON Schemas from PHP models, inspired by Python's Pydantic. Ideal for integrating with OpenAI structured outputs, function calling, or any other JSON-schema–driven tooling.
 
 ---
 
@@ -68,11 +14,9 @@ A PHP library for generating JSON schemas from PHP models, inspired by Python's 
 - [Requirements](#requirements)
 - [Installation](#installation)
 - [Usage](#usage)
-
-  - [Defining Models](#defining-models)
-  - [Generating Standard JSON Schema](#generating-standard-json-schema)
-  - [OpenAI Structured Outputs](#openai-structured-outputs)
-
+  - [1. Defining Models](#1-defining-models)
+  - [2. Generating JSON Schema](#2-generating-json-schema)
+  - [3. OpenAI Structured Outputs](#3-openai-structured-outputs)
 - [API Reference](#api-reference)
 - [Testing](#testing)
 - [Contributing](#contributing)
@@ -83,9 +27,9 @@ A PHP library for generating JSON schemas from PHP models, inspired by Python's 
 ## Features
 
 - **Automatic Type Inference**: Infers JSON Schema types from PHP property types (`int`, `float`, `string`, `bool`).
-- **Nullable Support**: Handles nullable types (`?string`) as `type: ["string", "null"]`.
-- **Nested Models & Arrays**: Nested `BaseModel` support and arrays of models via `@var ModelName[]` annotations.
-- **Property Descriptions**: Add `@Description` tags in docblocks to include descriptions in schemas.
+- **Nullable Support**: Handles nullable types (e.g., `?string`) as `type: ["string", "null"]`.
+- **Nested Models & Arrays**: Supports nested `BaseModel` and arrays of models via `@var ModelName[]` annotations.
+- **Property Descriptions**: Leverage `@Description` tags in docblocks to include descriptions in schemas.
 - **Strict Mode**: Generate strict schemas for OpenAI function calling or JSON validation.
 
 ## Requirements
@@ -103,9 +47,9 @@ composer require mertcanekiz/phpydantic
 
 ## Usage
 
-### Defining Models
+### 1. Defining Models
 
-Extend `Phpydantic\BaseModel` and declare your public properties:
+Extend `Phpydantic\BaseModel` and declare public properties. Use docblocks for metadata:
 
 ```php
 use Phpydantic\BaseModel;
@@ -132,25 +76,30 @@ class MathReasoning extends BaseModel
 }
 ```
 
-### Generating Standard JSON Schema
+### 2. Generating JSON Schema
 
-Use the static `schema()` or `jsonSchema()` methods:
+Use static methods to generate schema definitions:
 
 ```php
+// Returns schema as PHP array
 $schemaArray = MathReasoning::schema();
-// Generates a PHP array representation of the JSON Schema
 
+// Returns pretty-printed JSON string
 $schemaJson = MathReasoning::jsonSchema();
-// Pretty-printed JSON string of the schema
 ```
 
+**Example JSON Schema**
+
 ```json
-// Example output of jsonSchema():
 {
-  "name": "MathReasoning",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MathReasoning",
   "type": "object",
   "properties": {
-    "steps": { "type": "array", "items": { "$ref": "#/definitions/Step" } },
+    "steps": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/Step" }
+    },
     "finalAnswer": { "type": "string" }
   },
   "required": ["steps", "finalAnswer"],
@@ -158,41 +107,43 @@ $schemaJson = MathReasoning::jsonSchema();
 }
 ```
 
-### OpenAI Structured Outputs
+### 3. OpenAI Structured Outputs
 
 Generate schemas compatible with OpenAI function calling or JSON mode:
 
 ```php
-$client = OpenAI::client('YOUR_API_KEY');
+use OpenAI\OpenAI;
 
+$client = OpenAI::client('YOUR_API_KEY');
 $schema = MathReasoning::openAiSchema();
+
 $response = $client->chat()->create([
-    'model'           => 'gpt-4o-2024-08-06',
-    'messages'        => [
-        ['role' => 'system', 'content' => 'You are a helpful math tutor. Guide the user through the solution step by step.'],
-        ['role' => 'user',   'content' => 'How can I solve 8x + 7 = -23?'],
+    'model' => 'gpt-4o-2024-08-06',
+    'messages' => [
+        ['role' => 'system',  'content' => 'You are a helpful math tutor. Guide the user step by step.'],
+        ['role' => 'user',    'content' => 'How can I solve 8x + 7 = -23?'],
     ],
     'response_format' => [
-        'type'       => 'json_schema',
-        'json_schema'=> $schema,
+        'type' => 'json_schema',
+        'json_schema' => $schema,
     ],
 ]);
 
 $data = json_decode($response['choices'][0]['message']['content'], true);
-// $data['steps'] will be an array of Step objects
+// Access results: $data['steps'], $data['finalAnswer']
 ```
 
 ## API Reference
 
 | Method                    | Description                                                 |
 | ------------------------- | ----------------------------------------------------------- |
-| `::schema(): array`       | Returns the schema as a PHP array.                          |
-| `::jsonSchema(): string`  | Returns the pretty-printed JSON schema string.              |
+| `::schema(): array`       | Returns schema as a PHP array.                              |
+| `::jsonSchema(): string`  | Returns pretty-printed JSON schema.                         |
 | `::openAiSchema(): array` | Wraps `schema()` for OpenAI function-calling compatibility. |
 
 ## Testing
 
-Run the automated tests with PHPUnit:
+Run PHPUnit tests:
 
 ```bash
 composer test
@@ -200,13 +151,15 @@ composer test
 
 ## Contributing
 
+Contributions are welcome! Please follow these steps:
+
 1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/YourFeature`)
-3. Commit your changes (`git commit -m 'Add new feature'`)
-4. Push to the branch (`git push origin feature/YourFeature`)
+2. Create a new branch: `git checkout -b feature/YourFeature`
+3. Commit your changes: `git commit -m 'Add new feature'`
+4. Push to your branch: `git push origin feature/YourFeature`
 5. Open a Pull Request
 
-Please ensure all tests pass and follow PSR-12 coding standards.
+Ensure all tests pass and adhere to PSR-12 coding standards.
 
 ## License
 
