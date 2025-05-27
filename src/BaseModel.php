@@ -84,6 +84,7 @@ abstract class BaseModel
         unset($schema['name']);
 
         return [
+            'type' => 'json_schema',
             'name' => $name,
             'schema' => $schema,
             'strict' => true,
