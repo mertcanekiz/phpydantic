@@ -17,6 +17,7 @@ A lightweight PHP library for generating JSON Schemas from PHP models, inspired 
   - [1. Defining Models](#1-defining-models)
   - [2. Generating JSON Schema](#2-generating-json-schema)
   - [3. OpenAI Structured Outputs](#3-openai-structured-outputs)
+  - [4. Deserializing JSON Data](#4-deserializing-json-data)
 - [API Reference](#api-reference)
 - [Testing](#testing)
 - [Contributing](#contributing)
@@ -133,13 +134,51 @@ $data = json_decode($response['choices'][0]['message']['content'], true);
 // Access results: $data['steps'], $data['finalAnswer']
 ```
 
+### 4. Deserializing JSON Data
+
+Use `fromJson` to create model instances from JSON strings:
+
+```php
+$json = '{
+    "steps": [
+        {
+            "explanation": "First, subtract 7 from both sides",
+            "output": "8x = -30"
+        },
+        {
+            "explanation": "Then divide both sides by 8",
+            "output": "x = -3.75"
+        }
+    ],
+    "finalAnswer": "x = -3.75"
+}';
+
+$reasoning = MathReasoning::fromJson($json);
+
+// Access the data as PHP objects
+foreach ($reasoning->steps as $step) {
+    echo $step->explanation . "\n";
+    echo $step->output . "\n";
+}
+echo "Final answer: " . $reasoning->finalAnswer;
+```
+
+The `fromJson` method handles:
+
+- Nested model deserialization
+- Arrays of models
+- Type casting for primitive values
+- Nullable properties
+- JSON validation
+
 ## API Reference
 
-| Method                    | Description                                                 |
-| ------------------------- | ----------------------------------------------------------- |
-| `::schema(): array`       | Returns schema as a PHP array.                              |
-| `::jsonSchema(): string`  | Returns pretty-printed JSON schema.                         |
-| `::openAiSchema(): array` | Wraps `schema()` for OpenAI function-calling compatibility. |
+| Method                       | Description                                                 |
+| ---------------------------- | ----------------------------------------------------------- |
+| `::schema(): array`          | Returns schema as a PHP array.                              |
+| `::jsonSchema(): string`     | Returns pretty-printed JSON schema.                         |
+| `::openAiSchema(): array`    | Wraps `schema()` for OpenAI function-calling compatibility. |
+| `::fromJson(string): static` | Creates a model instance from a JSON string.                |
 
 ## Testing
 

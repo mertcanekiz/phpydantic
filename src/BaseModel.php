@@ -94,4 +94,79 @@ abstract class BaseModel
     {
         return json_encode(static::schema(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
     }
+
+    public static function fromJson(string $json): static
+    {
+        $data = json_decode($json, true);
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            throw new \InvalidArgumentException('Invalid JSON: ' . json_last_error_msg());
+        }
+
+        $rc = new ReflectionClass(static::class);
+        // Skip the constructor entirely
+        $instance = $rc->newInstanceWithoutConstructor();
+
+        foreach ($rc->getProperties(ReflectionProperty::IS_PUBLIC) as $prop) {
+            $name = $prop->getName();
+            if (! array_key_exists($name, $data)) {
+                continue;
+            }
+            $value = $data[$name];
+            $type  = $prop->getType();
+
+            // Allow nulls
+            if ($value === null) {
+                $instance->$name = null;
+                continue;
+            }
+
+            if ($type && ! $type->isBuiltin() && is_subclass_of($type->getName(), BaseModel::class)) {
+                // Nested BaseModel
+                $className = $type->getName();
+                if (!is_array($value)) {
+                    throw new \InvalidArgumentException("Property '$name' must be an object, got " . gettype($value));
+                }
+                // Re-encode so that fromJson can accept arrays as well
+                $instance->$name = $className::fromJson(json_encode($value));
+            } elseif ($type && $type->getName() === 'array') {
+                // Array of BaseModels
+                if (!is_array($value)) {
+                    throw new \InvalidArgumentException("Property '$name' must be an array, got " . gettype($value));
+                }
+                $items = [];
+                $itemClass = null;
+                if ($doc = $prop->getDocComment()) {
+                    if (preg_match('/@var\s+([\w\\\\]+)\[\]/', $doc, $m)) {
+                        $ic = $m[1];
+                        if (! str_contains($ic, '\\')) {
+                            $ic = $rc->getNamespaceName() . '\\' . $ic;
+                        }
+                        if (class_exists($ic) && is_subclass_of($ic, BaseModel::class)) {
+                            $itemClass = $ic;
+                        }
+                    }
+                }
+                if ($itemClass) {
+                    foreach ($value as $item) {
+                        if (!is_array($item)) {
+                            throw new \InvalidArgumentException("Array item in '$name' must be an object, got " . gettype($item));
+                        }
+                        $items[] = $itemClass::fromJson(json_encode($item));
+                    }
+                    $instance->$name = $items;
+                } else {
+                    // just a normal PHP array
+                    $instance->$name = $value;
+                }
+            } else {
+                // Primitive
+                $phpType = $type?->getName() ?? 'string';
+                // cast to int/float/bool/string
+                settype($value, $phpType);
+                $instance->$name = $value;
+            }
+        }
+
+        return $instance;
+    }
 }

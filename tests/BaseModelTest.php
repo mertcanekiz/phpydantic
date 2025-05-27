@@ -181,4 +181,101 @@ class BaseModelTest extends TestCase
         $this->assertSame($schema, $openAiSchema['schema']);
         $this->assertTrue($openAiSchema['strict']);
     }
+
+    public function testFromJsonWithInvalidJson()
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Invalid JSON');
+        Product::fromJson('{invalid json}');
+    }
+
+    public function testFromJsonWithInvalidNestedModelType()
+    {
+        $json = json_encode([
+            'id' => '123',
+            'name' => 'John Doe',
+            'address' => 42, // Should be an object, not a number
+            'nickname' => null
+        ]);
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage("Property 'address' must be an object, got integer");
+        User::fromJson($json);
+    }
+
+    public function testFromJsonWithInvalidArrayItemType()
+    {
+        $json = json_encode([
+            'id' => '123',
+            'quantity' => 10,
+            'price' => 100.0,
+            'inStock' => true,
+            'data' => [],
+            'tags' => [
+                42, // Should be an object, not a number
+                ['label' => 'valid tag']
+            ]
+        ]);
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage("Array item in 'tags' must be an object, got integer");
+        Product::fromJson($json);
+    }
+
+    public function testFromJsonWithValidNestedModel()
+    {
+        $json = json_encode([
+            'id' => 'u1',
+            'name' => 'Alice',
+            'address' => [
+                'street' => '1 Infinite Loop',
+                'city' => 'Cupertino',
+                'state' => 'CA',
+                'zip' => '95014',
+                'phone' => null,
+            ],
+        ]);
+
+        $user = User::fromJson($json);
+        $this->assertInstanceOf(User::class, $user);
+        $this->assertInstanceOf(Address::class, $user->address);
+        $this->assertSame('Cupertino', $user->address->city);
+        $this->assertNull($user->address->phone);
+    }
+
+    public function testFromJsonWithValidArrayOfModels()
+    {
+        $json = json_encode([
+            'id' => 'p1',
+            'quantity' => 5,
+            'price' => 19.99,
+            'inStock' => true,
+            'data' => [],
+            'tags' => [
+                ['label' => 'new'],
+                ['label' => 'sale'],
+            ],
+        ]);
+
+        $product = Product::fromJson($json);
+        $this->assertInstanceOf(Product::class, $product);
+        $this->assertIsArray($product->tags);
+        $this->assertCount(2, $product->tags);
+        $this->assertContainsOnlyInstancesOf(Tag::class, $product->tags);
+        $this->assertSame('new', $product->tags[0]->label);
+    }
+
+    public function testFromJsonWithNonArrayForArrayProperty()
+    {
+        $json = json_encode([
+            'id' => 'p2',
+            'quantity' => 1,
+            'price' => 9.99,
+            'inStock' => true,
+            'data' => [],
+            'tags' => 'should be array',
+        ]);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage("Property 'tags' must be an array");
+        Product::fromJson($json);
+    }
 }
